@@ -99,21 +99,15 @@ class BootImage:
                 setattr(self, i, kargs[i])
 
     def decompress_kernel(self):
-        decompressor = [self._un_gz, self._un_xz, self._un_lzo]
-        for decompress in decompressor:
-            data = decompress()
-            if data:
-                logging.info('decompress using {0} succussfully'.format(decompress.__name__))
-                return data
-        
-        raise Exception('Unkown compress')
+        return decompress(self.kernel_data)
 
-    def _un_gz(self):
-        offset = self.kernel_data.find(b'\x1f\x8b\x08')
+def decompress(kernel_data):
+    def _un_gz():
+        offset = kernel_data.find(b'\x1f\x8b\x08')
         if offset>0:
             try:
                 import zlib
-                data = zlib.decompress(self.kernel_data[offset+10:], -zlib.MAX_WBITS)
+                data = zlib.decompress(kernel_data[offset+10:], -zlib.MAX_WBITS)
             except ImportError:
                 logging.error("Need zlib to decompress gzip data")
                 raise
@@ -121,26 +115,26 @@ class BootImage:
         else:
             return None
 
-    def _un_xz(self):
-        offset = self.kernel_data.find(b'\xfd7zXZ\x00')
-        offset = self.kernel_data.find(b'\xfd7zXZ\x00', offset+6)
+    def _un_xz():
+        offset = kernel_data.find(b'\xfd7zXZ\x00')
+        offset = kernel_data.find(b'\xfd7zXZ\x00', offset+6)
         if offset > 0:
             try:
                 import lzma
-                return lzma.decompress(self.kernel_data[offset:])
+                return lzma.decompress(kernel_data[offset:])
             except ImportError:
                 logging.error("Need pyliblzma(python2)/lzma(python3) to decompress gzip data")
                 raise
         else:
             return None
 
-    def _un_lzo(self):
-        offset = self.kernel_data.find(b'\x89LZO\x00')
-        offset = self.kernel_data.find(b'\x89LZO\x00', offset+5)
+    def _un_lzo():
+        offset = kernel_data.find(b'\x89LZO\x00')
+        offset = kernel_data.find(b'\x89LZO\x00', offset+5)
         if offset > 0:
             try:
                 import _lzo
-                f = BytesIO(self.kernel_data[offset:])
+                f = BytesIO(kernel_data[offset:])
 
                 magic = f.read(9)
                 assert(magic ==  b'\x89LZO\x00\x0d\x0a\x1a\x0a')
@@ -201,6 +195,28 @@ class BootImage:
         else:
             return None
 
+    def _un_lz4():
+        # XXX TODO
+        offset = kernel_data.find(b'\x02\x21\x4c\x18')
+        if offset > 0:
+            try:
+                import lz4
+
+            except ImportError:
+                logging.error("Need lz4 library to decompress gzip data")
+                raise
+        else:
+            return None
+
+
+    decompressor = [_un_gz, _un_xz, _un_lzo]
+    for decompress in decompressor:
+        data = decompress()
+        if data:
+            logging.info('decompress using {0} succussfully'.format(decompress.__name__))
+            return data
+    
+    raise Exception('Unkown compress')
 
 
 class KernelSyms:

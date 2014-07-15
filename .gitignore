@@ -1,0 +1,4 @@
+*.pyc
+dump/
+arm7-dasm-master/
+__pycache__/
